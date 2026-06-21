@@ -9,6 +9,7 @@ local WORDS_URLS = {
     "https://raw.githubusercontent.com/Null-ScriptX/Word-ScriptV2/main/words_part1.txt",
     "https://raw.githubusercontent.com/Null-ScriptX/Word-ScriptV2/main/words_part2.txt",
     "https://raw.githubusercontent.com/Null-ScriptX/Word-ScriptV2/main/words_part3.txt",
+    "https://raw.githubusercontent.com/Null-ScriptX/Word-ScriptV2/main/words_part4.txt",
 }
 
 local words = {}
