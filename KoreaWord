@@ -5,7 +5,6 @@ local player = Players.LocalPlayer
 
 local gui = player:WaitForChild("PlayerGui")
 
-
 local WORDS_URLS = {
     "https://raw.githubusercontent.com/Null-ScriptX/Word-ScriptV2/main/words_part1.txt",
     "https://raw.githubusercontent.com/Null-ScriptX/Word-ScriptV2/main/words_part2.txt",
@@ -957,9 +956,6 @@ task.spawn(function()
     end
 end)
 
--- =======================================
--- 인트로 오버레이
--- =======================================
 local introOverlay = Instance.new("Frame")
 introOverlay.Name = "IntroOverlay"
 introOverlay.Size = UDim2.new(1, 0, 1, 0)
@@ -978,7 +974,7 @@ local introTitle = Instance.new("TextLabel")
 introTitle.Size = UDim2.new(1, 0, 0, 30)
 introTitle.Position = UDim2.new(0, 0, 0.5, -42)
 introTitle.BackgroundTransparency = 1
-introTitle.Text = "Korea Word Script V2"
+introTitle.Text = "Korea Word Script V2.1"
 introTitle.Font = Enum.Font.GothamBold
 introTitle.TextSize = 26
 introTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1024,13 +1020,10 @@ loadingLabel.TextXAlignment = Enum.TextXAlignment.Center
 loadingLabel.ZIndex = 101
 loadingLabel.Parent = introOverlay
 
--- =======================================
--- ★ 수정된 단어 로딩 (plain text, 병렬)
--- =======================================
 local fetchDone = false
 local loadedChunks = 0
 local totalChunks = #WORDS_URLS
-local wordSet = {}  -- 중복 제거용
+local wordSet = {}
 
 task.spawn(function()
     local threads = {}
@@ -1042,17 +1035,15 @@ task.spawn(function()
             end)
 
             if success and type(content) == "string" then
-                local parseCount = 0 -- 렉 방지용 카운터 추가
-                -- 줄바꿈으로 단어 분리
+                local parseCount = 0
                 for word in content:gmatch("[^\r\n]+") do
-                    word = word:match("^%s*(.-)%s*$") -- trim
+                    word = word:match("^%s*(.-)%s*$")
                     if word ~= "" and not wordSet[word] then
                         wordSet[word] = true
                         table.insert(words, word)
                     end
                     
                     parseCount += 1
-                    -- 1000개의 단어를 처리할 때마다 프레임을 한 번 넘겨주어 게임이 멈추는 것을 방지
                     if parseCount % 1000 == 0 then
                         task.wait() 
                     end
@@ -1061,7 +1052,6 @@ task.spawn(function()
 
             loadedChunks += 1
 
-            -- 로딩 레이블 업데이트 (안전하게)
             pcall(function()
                 loadingLabel.Text = string.format("단어 불러오는 중... (%d/%d)", loadedChunks, totalChunks)
                 local progress = loadedChunks / totalChunks
@@ -1085,12 +1075,10 @@ task.spawn(function()
     TweenService:Create(introTitle, fadeIn, {TextTransparency = 0}):Play()
     TweenService:Create(loadingLabel, fadeIn, {TextTransparency = 0}):Play()
 
-    -- 최소 로딩바 진행 (시각적)
     TweenService:Create(progressBarFill, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Size = UDim2.new(0.1, 0, 1, 0)
     }):Play()
 
-    -- 모든 청크 로드 완료 대기
     while not fetchDone do
         task.wait(0.1)
     end
