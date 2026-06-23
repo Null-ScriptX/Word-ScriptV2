@@ -610,15 +610,71 @@ local function createResult(word, isSpecial, orderIndex)
     end)
 end
 
+local I_CLASS_JUNG = {[2] = true, [6] = true, [7] = true, [12] = true, [17] = true, [20] = true}
+
+local function getDueumVariant(reqChar)
+    if not reqChar or reqChar == "" then return nil end
+
+    -- 첫 번째 단 한 글자(음절)만 분리해서 가져오기 (괄호 등 예외 문자 필터링)
+    local firstChar = nil
+    for _, cp in utf8.codes(reqChar) do
+        firstChar = utf8.char(cp)
+        break
+    end
+
+    if not firstChar then return nil end
+
+    local code = utf8.codepoint(firstChar)
+    if code < 0xAC00 or code > 0xD7A3 then
+        return nil
+    end
+
+    local offset = code - 0xAC00
+    local jong = offset % 28
+    local jung = math.floor(offset / 28) % 21
+    local cho = math.floor(offset / 28 / 21)
+
+    local newCho = nil
+    if cho == 5 then -- 초성이 'ㄹ' 인 경우
+        newCho = I_CLASS_JUNG[jung] and 11 or 2
+    elseif cho == 2 and I_CLASS_JUNG[jung] then
+        newCho = 11
+    end
+
+    if not newCho then
+        return nil
+    end
+
+    return utf8.char(0xAC00 + (newCho * 21 + jung) * 28 + jong)
+end
+
 local function update()
     local text = box.Text
     clear()
     
     if text == "" or currentCategory == "자동 입력" then return end
 
+    -- 수동 검색창에서도 첫 글자의 두음법칙 베리에이션을 생성
+    local cleanChar = nil
+    for _, cp in utf8.codes(text) do
+        cleanChar = utf8.char(cp)
+        break
+    end
+
+    local variant = getDueumVariant(cleanChar)
+    local variantText = nil
+    if variant and cleanChar then
+        local rest = string.sub(text, #cleanChar + 1)
+        variantText = variant .. rest
+    end
+
     local results = {}
     for _,word in ipairs(words) do
-        if string.sub(word,1,#text) == text then
+        local matches = string.sub(word,1,#text) == text
+        if not matches and variantText then
+            matches = string.sub(word,1,#variantText) == variantText
+        end
+        if matches then
             table.insert(results, word)
         end
     end
@@ -838,64 +894,40 @@ local function isSpecialWord(w)
     return false
 end
 
-local I_CLASS_JUNG = {[2] = true, [6] = true, [7] = true, [12] = true, [17] = true, [20] = true}
-
-local function getDueumVariant(reqChar)
-    if not reqChar or reqChar == "" then return nil end
-
-    local firstChar, restChars = nil, {}
-    for _, cp in utf8.codes(reqChar) do
-        if not firstChar then
-            firstChar = utf8.char(cp)
-        else
-            table.insert(restChars, utf8.char(cp))
-        end
-    end
-
-    if not firstChar then return nil end
-
-    local code = utf8.codepoint(firstChar)
-    if code < 0xAC00 or code > 0xD7A3 then
-        return nil
-    end
-
-    local offset = code - 0xAC00
-    local jong = offset % 28
-    local jung = math.floor(offset / 28) % 21
-    local cho = math.floor(offset / 28 / 21)
-
-    local newCho = nil
-    if cho == 5 then
-        newCho = I_CLASS_JUNG[jung] and 11 or 2
-    elseif cho == 2 and I_CLASS_JUNG[jung] then
-        newCho = 11
-    end
-
-    if not newCho then
-        return nil
-    end
-
-    local newFirstChar = utf8.char(0xAC00 + (newCho * 21 + jung) * 28 + jong)
-    return newFirstChar .. table.concat(restChars)
-end
-
 local function pickAutoWord(char)
-    local variant = getDueumVariant(char)
+    local cleanChar = nil
+    for _, cp in utf8.codes(char) do
+        cleanChar = utf8.char(cp)
+        break
+    end
+    if not cleanChar then return nil end
+
+    local variant = getDueumVariant(cleanChar)
     local specialCandidates = {}
+    local normalCandidates = {}
 
     for _, w in ipairs(words) do
-        local matches = string.sub(w, 1, #char) == char
+        local matches = string.sub(w, 1, #cleanChar) == cleanChar
         if not matches and variant then
             matches = string.sub(w, 1, #variant) == variant
         end
 
-        if matches and not autoUsedWords[w] and isSpecialWord(w) then
-            table.insert(specialCandidates, w)
+        if matches and not autoUsedWords[w] then
+            if isSpecialWord(w) then
+                table.insert(specialCandidates, w)
+            else
+                table.insert(normalCandidates, w)
+            end
         end
     end
 
+    -- 한 방 단어가 있다면 최우선 선택, 없다면 일반 단어로 대체하여 무조건 입력이 작동하게 만듦
     if #specialCandidates > 0 then
         local chosen = specialCandidates[1]
+        autoUsedWords[chosen] = true
+        return chosen
+    elseif #normalCandidates > 0 then
+        local chosen = normalCandidates[1]
         autoUsedWords[chosen] = true
         return chosen
     end
