@@ -1057,13 +1057,28 @@ task.spawn(function()
 
             if success and type(content) == "string" then
                 local parseCount = 0
-                for word in content:gmatch("[^\r\n]+") do
+                for word in content:gmatch('"([^"]+)"') do
                     word = word:match("^%s*(.-)%s*$")
                     if word ~= "" and not wordSet[word] then
                         wordSet[word] = true
                         table.insert(words, word)
                     end
-                    
+
+                    parseCount += 1
+                    if parseCount % 1000 == 0 then
+                        task.wait() 
+                    end
+                end
+
+                for line in content:gmatch("[^\r\n]+") do
+                    if not line:find('"') then
+                        local word = line:match("^%s*(.-)%s*$")
+                        if word ~= "" and not wordSet[word] then
+                            wordSet[word] = true
+                            table.insert(words, word)
+                        end
+                    end
+
                     parseCount += 1
                     if parseCount % 1000 == 0 then
                         task.wait() 
